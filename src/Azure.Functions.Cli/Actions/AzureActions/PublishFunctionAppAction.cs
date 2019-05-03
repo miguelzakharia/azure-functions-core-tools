@@ -121,7 +121,7 @@ namespace Azure.Functions.Cli.Actions.AzureActions
             var ignoreParser = PublishHelper.GetIgnoreParser(functionAppRoot);
 
             // Get the WorkerRuntime
-            var workerRuntime = WorkerRuntimeLanguageHelper.GetCurrentWorkerRuntimeLanguage(_secretsManager);
+            var workerRuntime = GlobalCoreToolsSettings.CurrentWorkerRuntime;
 
             // Check for any additional conditions or app settings that need to change
             // before starting any of the publish activity.
@@ -282,21 +282,19 @@ namespace Azure.Functions.Cli.Actions.AzureActions
                 RunFromPackageDeploy = false;
             }
 
-            var workerRuntime = _secretsManager.GetSecrets().FirstOrDefault(s => s.Key.Equals(Constants.FunctionsWorkerRuntime, StringComparison.OrdinalIgnoreCase)).Value;
-            var workerRuntimeEnum = string.IsNullOrEmpty(workerRuntime) ? WorkerRuntime.None : WorkerRuntimeLanguageHelper.NormalizeWorkerRuntime(workerRuntime);
-            if (workerRuntimeEnum == WorkerRuntime.python && !functionApp.IsLinux)
+            if (GlobalCoreToolsSettings.CurrentWorkerRuntime == WorkerRuntime.python && !functionApp.IsLinux)
             {
                 throw new CliException("Publishing Python functions is only supported for Linux FunctionApps");
             }
 
-            Func<Task<Stream>> zipStreamFactory = () => ZipHelper.GetAppZipFile(workerRuntimeEnum, functionAppRoot, BuildNativeDeps, NoBuild, ignoreParser, AdditionalPackages, ignoreDotNetCheck: true);
+            Func<Task<Stream>> zipStreamFactory = () => ZipHelper.GetAppZipFile(functionAppRoot, BuildNativeDeps, NoBuild, ignoreParser, AdditionalPackages, ignoreDotNetCheck: true);
 
             bool shouldSyncTriggers = true;
             var fileNameNoExtension = string.Format("{0}-{1}", DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss"), Guid.NewGuid());
             if (functionApp.IsLinux && functionApp.IsDynamic)
             {
                 // Consumption Linux, try squashfs as a package format.
-                if (workerRuntimeEnum == WorkerRuntime.python && !NoBuild && BuildNativeDeps)
+                if (GlobalCoreToolsSettings.CurrentWorkerRuntime == WorkerRuntime.python && !NoBuild && BuildNativeDeps)
                 {
                     await PublishRunFromPackage(functionApp, await PythonHelpers.ZipToSquashfsStream(await zipStreamFactory()), $"{fileNameNoExtension}.squashfs");
                 }
